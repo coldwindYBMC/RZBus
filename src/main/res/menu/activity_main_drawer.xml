@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_busSearch"
+            android:icon="@drawable/ic_directions_bus_black_24dp"
+            android:title="公交线路查询" />
+        <item
+            android:id="@+id/nav_gallery"
+            android:icon="@drawable/ic_pin_drop_black_24dp"
+            android:title="公交位置查询" />
+        <item
+            android:id="@+id/nav_slideshow"
+            android:icon="@drawable/ic_directions_bike_black_24dp"
+            android:title="天气查询" />
+        <item
+            android:id="@+id/nav_camera"
+            android:icon="@drawable/ic_menu_camera"
+            android:title="游玩查询" />
+    </group>
+
+    <item android:title="系统">
+        <menu>
+            <item
+                android:id="@+id/nav_share"
+                android:icon="@drawable/ic_menu_share"
+                android:title="账户安全" />
+            <item
+                android:id="@+id/nav_manage"
+                android:icon="@drawable/ic_menu_manage"
+                android:title="注销登陆" />
+        </menu>
+    </item>
+
+</menu>
