@@ -37,6 +37,7 @@
             android:id="@+id/city_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="日照"
             >
 
             <requestFocus />
@@ -51,6 +52,7 @@
             android:id="@+id/searchkey_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="32"
              />
 
         <TextView
@@ -61,7 +63,8 @@
         <LinearLayout
             android:layout_width="fill_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" >
+            android:orientation="vertical"
+         >
 
             <Button
                 android:id="@+id/busline_search_btn"

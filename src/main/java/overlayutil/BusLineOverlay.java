@@ -1,10 +1,12 @@
 package overlayutil;
 
+import android.content.Context;
 import android.graphics.Color;
-import android.util.Log;
+import android.widget.Toast;
 
 import com.baidu.mapapi.map.BaiduMap;
 import com.baidu.mapapi.map.BitmapDescriptorFactory;
+import com.baidu.mapapi.map.MapStatusUpdateFactory;
 import com.baidu.mapapi.map.Marker;
 import com.baidu.mapapi.map.MarkerOptions;
 import com.baidu.mapapi.map.OverlayOptions;
@@ -12,6 +14,7 @@ import com.baidu.mapapi.map.Polyline;
 import com.baidu.mapapi.map.PolylineOptions;
 import com.baidu.mapapi.model.LatLng;
 import com.baidu.mapapi.search.busline.BusLineResult;
+import com.example.hang.myapplication.MainActivity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +25,7 @@ import java.util.List;
 public class BusLineOverlay extends OverlayManager {
 
     private BusLineResult mBusLineResult = null;
+    private Context context;
 
     /**
      * 构造函数
@@ -39,8 +43,10 @@ public class BusLineOverlay extends OverlayManager {
      * @param result
      *            公交线路结果数据
      */
-    public void setData(BusLineResult result) {
+    public void setData(BusLineResult result,Context context) {
         this.mBusLineResult = result;
+        this.context =context;
+
     }
 
     @Override
@@ -69,7 +75,7 @@ public class BusLineOverlay extends OverlayManager {
             overlayOptionses
                     .add(new PolylineOptions().width(10)
                             .color(Color.argb(178, 0, 78, 255)).zIndex(0)
-                                    .points(points));
+                            .points(points));
         }
         return overlayOptionses;
     }
@@ -86,7 +92,14 @@ public class BusLineOverlay extends OverlayManager {
     public boolean onBusStationClick(int index) {
         if (mBusLineResult.getStations() != null
                 && mBusLineResult.getStations().get(index) != null) {
-            Log.i("baidumapsdk", "BusLineOverlay onBusStationClick");
+            // 获取 站点位置坐标
+            //newLatLng(LatLng latLng)设置地图新中心点
+            MainActivity.mBaiduMap.animateMapStatus(MapStatusUpdateFactory.newLatLng(mBusLineResult
+                    .getStations().get(index).getLocation()));
+
+             Toast.makeText(context, mBusLineResult.getStations()
+                               .get(index).getTitle(),Toast.LENGTH_SHORT).show();
+
         }
         return false;
     }
