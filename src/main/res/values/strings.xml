@@ -21,5 +21,6 @@
     <string name="error_field_required">用户名不能为空</string>
     <string name="permission_rationale">"刀."
     </string>
+    <string name="title_activity_bus_line_name">BusLineNameActivity</string>
 
 </resources>

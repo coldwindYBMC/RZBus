@@ -1,6 +1,6 @@
 package com.example.hang.myapplication;
 
-import android.util.Log;
+import android.os.Message;
 
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
@@ -14,7 +14,9 @@ import com.baidu.mapapi.model.LatLng;
  */
 public class MyLocationListener implements BDLocationListener {
     // 是否首次定位
+    public static final int SUCCESS_LOADING_MYCITY = 1;
     private boolean isFirstLoc=true;
+
     @Override
     public void onReceiveLocation(BDLocation location) {
 
@@ -37,7 +39,6 @@ public class MyLocationListener implements BDLocationListener {
                         location.getLongitude());
                 //这里获得city城市，在MainctityA中使用
               MainActivity.Mycity = location.getCity();
-                Log.d("hello",location.getCity()+"Location");
                 // 设置地图新中心点
                 MapStatusUpdate u = MapStatusUpdateFactory.newLatLng(ll);
                 //设置缩放度
@@ -45,6 +46,10 @@ public class MyLocationListener implements BDLocationListener {
                 MainActivity.mBaiduMap.animateMapStatus(u1);
                 //以动画方式更新地图状态，动画耗时 300 ms
                 MainActivity.mBaiduMap.animateMapStatus(u);
+
+                Message message = new Message();
+                message.what = SUCCESS_LOADING_MYCITY;
+                MainActivity.handler.sendMessage(message);
             }
     }
 
