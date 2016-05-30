@@ -163,7 +163,7 @@ public class TransitRouteOverlay extends OverlayManager {
     public boolean onRouteNodeClick(int i) {
         if (mRouteLine.getAllStep() != null
                 && mRouteLine.getAllStep().get(i) != null) {
-            Log.i("baidumapsdk", "TransitRouteOverlay onRouteNodeClick");
+            Log.i("hello",  "3333");
         }
         return false;
     }

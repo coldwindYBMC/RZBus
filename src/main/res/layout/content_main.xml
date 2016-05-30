@@ -18,7 +18,10 @@
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:clickable="true" />
-
+    <include
+        layout="@layout/activity_bus_roult_list"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
     <LinearLayout
         android:id="@+id/Bus_linearLayout"
         android:layout_width="fill_parent"

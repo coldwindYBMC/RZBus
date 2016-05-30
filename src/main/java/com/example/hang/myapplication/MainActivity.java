@@ -1,7 +1,6 @@
 package com.example.hang.myapplication;
 
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -11,30 +10,47 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.baidu.location.LocationClient;
 import com.baidu.mapapi.SDKInitializer;
 import com.baidu.mapapi.map.BaiduMap;
+import com.baidu.mapapi.map.InfoWindow;
+import com.baidu.mapapi.map.MapStatusUpdateFactory;
 import com.baidu.mapapi.map.MapView;
+import com.baidu.mapapi.model.LatLng;
 import com.baidu.mapapi.search.busline.BusLineResult;
 import com.baidu.mapapi.search.busline.BusLineSearch;
 import com.baidu.mapapi.search.busline.BusLineSearchOption;
 import com.baidu.mapapi.search.busline.OnGetBusLineSearchResultListener;
 import com.baidu.mapapi.search.core.PoiInfo;
+import com.baidu.mapapi.search.core.RouteLine;
 import com.baidu.mapapi.search.core.SearchResult;
 import com.baidu.mapapi.search.poi.OnGetPoiSearchResultListener;
 import com.baidu.mapapi.search.poi.PoiCitySearchOption;
 import com.baidu.mapapi.search.poi.PoiDetailResult;
 import com.baidu.mapapi.search.poi.PoiResult;
 import com.baidu.mapapi.search.poi.PoiSearch;
-import com.google.android.gms.appindexing.Action;
+import com.baidu.mapapi.search.route.BikingRouteLine;
+import com.baidu.mapapi.search.route.BikingRouteResult;
+import com.baidu.mapapi.search.route.DrivingRouteLine;
+import com.baidu.mapapi.search.route.DrivingRouteResult;
+import com.baidu.mapapi.search.route.OnGetRoutePlanResultListener;
+import com.baidu.mapapi.search.route.PlanNode;
+import com.baidu.mapapi.search.route.RoutePlanSearch;
+import com.baidu.mapapi.search.route.TransitRouteLine;
+import com.baidu.mapapi.search.route.TransitRoutePlanOption;
+import com.baidu.mapapi.search.route.TransitRouteResult;
+import com.baidu.mapapi.search.route.WalkingRouteLine;
+import com.baidu.mapapi.search.route.WalkingRouteResult;
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.api.GoogleApiClient;
 
@@ -43,15 +59,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 import overlayutil.BusLineOverlay;
+import overlayutil.OverlayManager;
+import overlayutil.TransitRouteOverlay;
 
 public class MainActivity extends AppCompatActivity
         implements View.OnClickListener, NavigationView.OnNavigationItemSelectedListener {
     public static final int  SUCCESS_LOADING_BUSINFORM = 2;//加载公交信息成功
     public static  EditText cityEt;
+    private Boolean flagcount = true;
+    private TextView popupText = null; // 泡泡view
     private EditText buslineEt;
     private Button searchBtn;
     private Button listlineBtn;
     private Button cancleBtn;
+    private Button route_all;
+    private Button roult_query;
+    private EditText roult_s_et;
+    private EditText roult_e_et;
+    private TextView tranlist_text;
     private Boolean bus_list_boolean = false;//判断是否公交信息加载完毕
     private String city;// 城市
     private String busline;// 公交路线
@@ -62,14 +87,22 @@ public class MainActivity extends AppCompatActivity
     private BusLineSearch busLineSearch;
     public static MapView mMapView = null; //声明MapView对象
     public static BaiduMap mBaiduMap;
-
-    private LinearLayout linearLayout; //被隐藏的布局，公交查询布局。
+    private boolean bustranInit_bl = true;
+    private boolean busListinit_bl = true;
+    private LinearLayout linearLayout, roult_linearLayout; //被隐藏的布局
     private static Intent intent;//传递消息
     static String Mycity;//所在的城市；
-
+    private RoutePlanSearch routePlanSearch;// 路径规划搜索接口
     //定位
     public LocationClient mLocClient = null;
     InitLocation initLocation = new InitLocation();
+    RouteLine route = null;
+    // 浏览路线节点相关
+    Button mBtnPre = null; // 上一个节点
+    Button mBtnNext = null; // 下一个节点
+    int nodeIndex = -1; // 节点索引,供浏览节点时使用
+     OverlayManager routeOverlay = null;
+
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -85,13 +118,15 @@ public class MainActivity extends AppCompatActivity
         */
         SDKInitializer.initialize(getApplicationContext());
         setContentView(R.layout.activity_main);
-
-        //获取linearlayout和其他布局
+        //获取被隐藏的linearlayout
         linearLayout = (LinearLayout) findViewById(R.id.Bus_linearLayout);
-        busLineinit();//公交查询布局
+        //获取隐藏的布局，转乘查询布局
+       roult_linearLayout = (LinearLayout)findViewById(R.id.bus_roult_lin);
+       // busLineinit();//公交查询布局，可以在用的时候再加载
         //获取地图控件引用
         mMapView = (MapView) findViewById(R.id.bmapView);
         mBaiduMap = mMapView.getMap();
+        cityEt = (EditText) findViewById(R.id.city_et);
         LocationStart();//开启定位
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -109,6 +144,32 @@ public class MainActivity extends AppCompatActivity
         // See https://g.co/AppIndexing/AndroidStudio for more information.
         client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
 
+    }
+    /**
+     * 初始化公交线路查询操作
+     */
+    private void busLineinit() {
+
+        buslineEt = (EditText) findViewById(R.id.searchkey_et);
+        searchBtn = (Button) findViewById(R.id.busline_search_btn);
+        listlineBtn = (Button) findViewById(R.id.listline_btn);
+        cancleBtn = (Button) findViewById(R.id.cancle_btn);
+        //注册监听
+        searchBtn.setOnClickListener(this);
+        listlineBtn.setOnClickListener(this);
+        cancleBtn.setOnClickListener(this);
+
+        //用存储公交线路的uid
+        buslineIdList = new ArrayList<String>();
+        // 创建POI检索实例
+        poiSearch = PoiSearch.newInstance();
+        //设置POI检索监听者；
+        poiSearch.setOnGetPoiSearchResultListener(poiSearchResultListener);
+        //如下是bus的检索监听
+        busLineSearch = BusLineSearch.newInstance();
+        busLineSearch
+                .setOnGetBusLineSearchResultListener(busLineSearchResultListener);
+        buslineOverlay = new BusLineOverlay(mBaiduMap);//初始化result
     }
 
     /*onDestroy到 onPause()方法
@@ -178,7 +239,17 @@ public class MainActivity extends AppCompatActivity
         int id = item.getItemId();
 
         if (id == R.id.nav_camera) {
-            // Handle the camera action
+            //保证布局不被其他覆盖
+            Log.d("hello",""+linearLayout.getVisibility());
+            if(linearLayout.getVisibility() != View.GONE){
+                linearLayout.setVisibility(View.GONE);
+            }
+            //加载布局，只在初次加载
+            if(bustranInit_bl ) {
+                bustranInit();
+                bustranInit_bl = false;
+            }
+            roult_linearLayout.setVisibility(View.VISIBLE);
         } else if (id == R.id.nav_gallery) {
 
         } else if (id == R.id.nav_slideshow) {
@@ -188,11 +259,18 @@ public class MainActivity extends AppCompatActivity
         } else if (id == R.id.nav_share) {
 
         } else if (id == R.id.nav_busSearch) {
+            //保证布局不被其他覆盖
+            if(roult_linearLayout.getVisibility()!=View.GONE){
+               roult_linearLayout.setVisibility(View.GONE);
+            }
+            //只在初次加载
+            if(busListinit_bl ) {
+                busLineinit(); //公交查询布局，用的时候在加载
+                busListinit_bl = false;
+            }
             //改布局显示
             linearLayout.setVisibility(View.VISIBLE);
-
         }
-
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
@@ -212,35 +290,11 @@ public class MainActivity extends AppCompatActivity
         mLocClient.start();
     }
 
-    /**
-     * 初始化操作
-     */
-    private void busLineinit() {
-        cityEt = (EditText) findViewById(R.id.city_et);
-        buslineEt = (EditText) findViewById(R.id.searchkey_et);
-        searchBtn = (Button) findViewById(R.id.busline_search_btn);
-        listlineBtn = (Button) findViewById(R.id.listline_btn);
-        cancleBtn = (Button) findViewById(R.id.cancle_btn);
-        //注册监听
-        searchBtn.setOnClickListener(this);
-        listlineBtn.setOnClickListener(this);
-        cancleBtn.setOnClickListener(this);
 
-        //用存储公交线路的uid
-        buslineIdList = new ArrayList<String>();
-        // 创建POI检索实例
-        poiSearch = PoiSearch.newInstance();
-        //设置POI检索监听者；
-        poiSearch.setOnGetPoiSearchResultListener(poiSearchResultListener);
-        //如下是bus的检索监听
-        busLineSearch = BusLineSearch.newInstance();
-        busLineSearch
-                .setOnGetBusLineSearchResultListener(busLineSearchResultListener);
-        buslineOverlay = new BusLineOverlay(mBaiduMap);//初始化result
-
-
-    }
-
+    /*
+    * 按钮监听
+    *
+    * */
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
@@ -267,10 +321,25 @@ public class MainActivity extends AppCompatActivity
                 //改布局显示
                 linearLayout.setVisibility(View.GONE);
                 break;
-
+            case R.id.roult_list_btn:
+                //换乘路线查询
+                PlanNode stNode = PlanNode.withCityNameAndPlaceName("日照", roult_s_et.getText().toString());
+                PlanNode enNode = PlanNode.withCityNameAndPlaceName("日照",roult_e_et.getText().toString());
+                routePlanSearch.transitSearch((new TransitRoutePlanOption())
+                        .from(stNode)
+                        .city("日照")
+                        .to(enNode));
+                break;
+            case R.id.roult_cancle_btn:
+                //隐藏布局
+               roult_linearLayout.setVisibility(View.GONE);
+                break;
         }
     }
-
+    /**
+     * 以下为公交路信息查询
+    *及其监听回调函数
+    */
     private void searchBusline() {
         //公交的站点大于，该路线的长度。
         if (buslineIndex >= buslineIdList.size()) {
@@ -290,7 +359,7 @@ public class MainActivity extends AppCompatActivity
             if (flag) {
                 //把布局隐藏
                 linearLayout.setVisibility(View.GONE);
-                Toast.makeText(MainActivity.this, "检索成功~", Toast.LENGTH_LONG)
+                Toast.makeText(MainActivity.this, "检索成功~", Toast.LENGTH_SHORT)
                         .show();
             } else {
                 Toast.makeText(MainActivity.this, "检索失败~", Toast.LENGTH_LONG)
@@ -312,7 +381,6 @@ public class MainActivity extends AppCompatActivity
                         Toast.LENGTH_LONG).show();
                 return;
             }
-
             if (poiResult.error == SearchResult.ERRORNO.NO_ERROR) {// 检索结果正常返回
                 // 遍历所有poi，找到类型为公交线路的poi
                 buslineIdList.clear();
@@ -325,7 +393,6 @@ public class MainActivity extends AppCompatActivity
                 searchBusline();
             }
         }
-
         @Override
         public void onGetPoiDetailResult(PoiDetailResult arg0) {
 
@@ -375,11 +442,14 @@ public class MainActivity extends AppCompatActivity
                     intent.putExtra("star_ttime", start_time);
                     intent.putExtra("end_time", end_time);
                     intent.putExtra("bus_list", busim_arr);
+                    bus_list_boolean = false;
                     startActivity(intent);
                 }
             }
         }
     };
+    //以上为公交路线信息
+    //异步处理消息
     static Handler handler = new Handler() {
         @Override
         public void handleMessage (Message msg){
@@ -392,45 +462,154 @@ public class MainActivity extends AppCompatActivity
             }
         }
     };
+    //转乘线路查询初始化
+    private void bustranInit(){
+        roult_s_et = (EditText)findViewById(R.id.start_et);
+        roult_e_et = (EditText)findViewById(R.id.end_et);
+        roult_query = (Button)findViewById(R.id.roult_list_btn);
+        cancleBtn = (Button)findViewById(R.id.roult_cancle_btn);
+        route_all = (Button)findViewById(R.id.all);
+        tranlist_text= (TextView)findViewById(R.id.trans_text);
+        mBtnPre = (Button) findViewById(R.id.pre);
+        mBtnNext = (Button) findViewById(R.id.next);
+        route_all.setVisibility(View.INVISIBLE);
+        mBtnPre.setVisibility(View.INVISIBLE);
+        mBtnNext.setVisibility(View.INVISIBLE);
 
-    @Override
-    public void onStart() {
-        super.onStart();
+        cancleBtn.setOnClickListener(this);
+        roult_query.setOnClickListener(this);
+        //创建公交线路规划检索实例；
+        routePlanSearch = RoutePlanSearch.newInstance();
+        //设置公交线路规划检索监听者；
+        routePlanSearch
+                .setOnGetRoutePlanResultListener(onGetRoutePlanResultListener);
 
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client.connect();
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Main Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app deep link URI is correct.
-                Uri.parse("android-app://com.example.hang.myapplication/http/host/path")
-        );
-        AppIndex.AppIndexApi.start(client, viewAction);
     }
 
-    @Override
-    public void onStop() {
-        super.onStop();
 
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Main Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app deep link URI is correct.
-                Uri.parse("android-app://com.example.hang.myapplication/http/host/path")
-        );
-        AppIndex.AppIndexApi.end(client, viewAction);
-        client.disconnect();
+    /**
+     *公交转乘路线查询
+     */
+    OnGetRoutePlanResultListener onGetRoutePlanResultListener = new OnGetRoutePlanResultListener() {
+        @Override
+        public void onGetWalkingRouteResult(WalkingRouteResult walkingRouteResult) {
+
+        }
+
+        @Override
+        public void onGetTransitRouteResult(TransitRouteResult result) {
+            if (result == null || result.error != SearchResult.ERRORNO.NO_ERROR) {
+                Toast.makeText(MainActivity.this, "抱歉，未找到结果", Toast.LENGTH_SHORT).show();
+            }
+            if (result.error == SearchResult.ERRORNO.AMBIGUOUS_ROURE_ADDR) {
+                //起终点或途经点地址有岐义，通过以下接口获取建议查询信息
+                result.getSuggestAddrInfo();
+                return;
+            }
+            if (result.error == SearchResult.ERRORNO.NO_ERROR) {
+                mBaiduMap.clear();
+                nodeIndex = -1;
+                route_all.setVisibility(View.VISIBLE);
+                mBtnPre.setVisibility(View.VISIBLE);
+                mBtnNext.setVisibility(View.VISIBLE);
+                route = result.getRouteLines().get(0);
+                TransitRouteOverlay overlay = new TransitRouteOverlay(mBaiduMap);
+                mBaiduMap.setOnMarkerClickListener(overlay);
+                routeOverlay = overlay;
+                overlay.setData(result.getRouteLines().get(0));
+                overlay.addToMap();
+                overlay.zoomToSpan();
+
+            }
+        }
+
+        @Override
+        public void onGetDrivingRouteResult(DrivingRouteResult drivingRouteResult) {
+
+        }
+
+        @Override
+        public void onGetBikingRouteResult(BikingRouteResult bikingRouteResult) {
+
+        }
+    };
+    /**
+     * 节点浏览
+     */
+    public void nodeClick(View v) {
+        // 获取节结果信息
+        LatLng nodeLocation = null;
+        String nodeTitle = null;
+        if (route == null || route.getAllStep() == null) {
+            return;
+        }
+        if (nodeIndex == -1 && v.getId() == R.id.pre) {
+            return;
+        }
+        // 设置节点索引
+        if (v.getId() == R.id.next) {
+            if (nodeIndex < route.getAllStep().size() - 1) {
+                nodeIndex++;
+            } else {
+                return;
+            }
+        } else if (v.getId() == R.id.pre) {
+            if (nodeIndex > 0) {
+                nodeIndex--;
+            } else {
+                return;
+            }
+        }else if(v.getId() == R.id.all){
+            if(flagcount) {
+                tranlist_text.setVisibility(View.VISIBLE);
+                String tran_list = "#" ;
+                //遍历所有节点信息
+                for (int i = 0; i < route.getAllStep().size(); i++) {
+                    Object step1 = route.getAllStep().get(i);
+                    nodeTitle = ((TransitRouteLine.TransitStep) step1).getInstructions();
+                    tran_list =  tran_list + nodeTitle+"\n"+"#";
+                }
+                tranlist_text.setText(tran_list);
+                route_all.setText("隐藏文字信息");
+                flagcount = false;
+            }
+         else  {
+                tranlist_text.setVisibility(View.GONE);
+                flagcount = true;
+                route_all.setText("显示文字信息");
+            }
+           return;
+        }
+        Object step = route.getAllStep().get(nodeIndex);
+        if (step instanceof DrivingRouteLine.DrivingStep) {
+            nodeLocation = ((DrivingRouteLine.DrivingStep) step).getEntrance().getLocation();
+            nodeTitle = ((DrivingRouteLine.DrivingStep) step).getInstructions();
+
+        } else if (step instanceof WalkingRouteLine.WalkingStep) {
+            nodeLocation = ((WalkingRouteLine.WalkingStep) step).getEntrance().getLocation();
+            nodeTitle = ((WalkingRouteLine.WalkingStep) step).getInstructions();
+
+        } else if (step instanceof TransitRouteLine.TransitStep) {
+            nodeLocation = ((TransitRouteLine.TransitStep) step).getEntrance().getLocation();
+            nodeTitle = ((TransitRouteLine.TransitStep) step).getInstructions();
+
+        } else if (step instanceof BikingRouteLine.BikingStep) {
+            nodeLocation = ((BikingRouteLine.BikingStep) step).getEntrance().getLocation();
+            nodeTitle = ((BikingRouteLine.BikingStep) step).getInstructions();
+
+        }
+        if (nodeLocation == null || nodeTitle == null) {
+
+        }
+        // 移动节点至中心
+        mBaiduMap.setMapStatus(MapStatusUpdateFactory.newLatLng(nodeLocation));
+        // show popup
+        popupText = new TextView(MainActivity.this);
+        popupText.setBackgroundResource(R.drawable.popup);
+        popupText.setTextColor(0xFF000000);
+        popupText.setText(nodeTitle);
+        mBaiduMap.showInfoWindow(new InfoWindow(popupText, nodeLocation, 0));
     }
+
 }
 
